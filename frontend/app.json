@@ -43,6 +43,18 @@
           "resizeMode": "contain",
           "backgroundColor": "#000"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Select food photos for analysis"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Capture food photos for freshness analysis"
+        }
       ]
     ],
     "experiments": {
