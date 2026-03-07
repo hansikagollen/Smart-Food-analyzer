@@ -1,3 +1,4 @@
+from utils.predictor import predict_freshness
 from fastapi import FastAPI, APIRouter, File, UploadFile, HTTPException
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
