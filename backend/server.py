@@ -115,17 +115,10 @@ async def predict_food(file: UploadFile = File(...)):
         # 
         # For now, using mock predictions:
         
-        # Randomly select a food item (your model will detect this)
-        food_name = random.choice(list(MOCK_FOODS.keys()))
+        # Use trained CNN model
+        freshness_class, confidence = predict_freshness(image)
+        food_name = "banana"  # temporary food label
         food_data = MOCK_FOODS[food_name]
-        
-        # Randomly assign freshness class (your model will classify this)
-        freshness_classes = ["Fresh", "Semi-Rotten", "Rotten"]
-        freshness_weights = [0.6, 0.3, 0.1]  # Bias towards fresh for demo
-        freshness_class = random.choices(freshness_classes, weights=freshness_weights)[0]
-        
-        # Mock confidence score (your model will provide this)
-        confidence = random.uniform(0.85, 0.98)
         
         # ============================================================
         # END OF MOCK SECTION
