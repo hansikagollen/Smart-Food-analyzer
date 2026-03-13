@@ -1,4 +1,3 @@
-```python
 from fastapi import FastAPI, APIRouter, File, UploadFile, HTTPException
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -14,6 +13,14 @@ import tensorflow as tf
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
+
+# --------------------------------------------------
+# Logging
+# --------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
 
 # --------------------------------------------------
 # Load TensorFlow model
@@ -69,28 +76,6 @@ class PredictionResponse(BaseModel):
 
 
 # --------------------------------------------------
-# Mock Food Database
-# --------------------------------------------------
-MOCK_FOODS = {
-    "apple": {
-        "nutrition": {"calories": 52, "carbs": 14, "protein": 0.3, "fat": 0.2, "fiber": 2.4},
-        "bioactive_compounds": ["Quercetin", "Catechin", "Chlorogenic acid", "Anthocyanins"],
-        "health_benefits": "Supports heart health and digestion. Rich in antioxidants.",
-    },
-    "banana": {
-        "nutrition": {"calories": 89, "carbs": 23, "protein": 1.1, "fat": 0.3, "fiber": 2.6},
-        "bioactive_compounds": ["Dopamine", "Catechin", "Resistant starch", "Pectin"],
-        "health_benefits": "Excellent source of potassium and energy.",
-    },
-    "tomato": {
-        "nutrition": {"calories": 18, "carbs": 3.9, "protein": 0.9, "fat": 0.2, "fiber": 1.2},
-        "bioactive_compounds": ["Lycopene", "Beta-carotene"],
-        "health_benefits": "Supports heart and skin health.",
-    },
-}
-
-
-# --------------------------------------------------
 # Routes
 # --------------------------------------------------
 @api_router.get("/")
@@ -110,7 +95,7 @@ async def predict_food(file: UploadFile = File(...)):
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid image file")
 
-        # convert image to base64
+        # Convert image to base64
         buffered = BytesIO()
         image_rgb = image.convert("RGB")
         image_rgb.thumbnail((800, 800))
@@ -120,8 +105,8 @@ async def predict_food(file: UploadFile = File(...)):
         # --------------------------------------------------
         # MODEL INFERENCE
         # --------------------------------------------------
-
         if model is not None:
+
             img_array = np.array(image.convert("RGB"))
             img_array = cv2.resize(img_array, (224, 224))
             img_array = img_array / 255.0
@@ -135,7 +120,8 @@ async def predict_food(file: UploadFile = File(...)):
             freshness_class = freshness_classes[predicted_class_idx]
 
         else:
-            logging.info("Using fallback analysis")
+
+            logging.info("Using fallback color analysis")
 
             img_array = np.array(image.convert("RGB"))
             img_array = cv2.resize(img_array, (224, 224))
@@ -156,7 +142,9 @@ async def predict_food(file: UploadFile = File(...)):
                 freshness_class = "Fresh"
                 confidence = 0.85
 
-        # food info (temporary)
+        # --------------------------------------------------
+        # Food info (temporary placeholder)
+        # --------------------------------------------------
         food_name = "Food Item"
 
         if freshness_class == "Fresh":
@@ -211,9 +199,3 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
-```
