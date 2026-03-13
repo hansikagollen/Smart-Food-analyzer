@@ -10,58 +10,15 @@ from PIL import Image
 from io import BytesIO
 import numpy as np
 import cv2
-import tensorflow as tf
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# Load TensorFlow model
-MODEL_PATH = ROOT_DIR / 'models' / 'food_freshness_model.h5'
-model = None
-model_load_error = None
-
-try:
-    # Try multiple loading methods
-    try:
-        # Method 1: Standard load
-        model = tf.keras.models.load_model(MODEL_PATH, compile=False)
-    except Exception as e1:
-        logging.warning(f"Standard load failed: {e1}")
-        try:
-            # Method 2: Load with safe_mode=False
-            model = tf.keras.models.load_model(MODEL_PATH, compile=False, safe_mode=False)
-        except Exception as e2:
-            logging.warning(f"Safe mode load failed: {e2}")
-            model_load_error = str(e2)
-            
-    if model:
-        model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-        logging.info(f"✓ Model loaded successfully from {MODEL_PATH}")
-        logging.info(f"Model input shape: {model.input_shape}")
-        logging.info(f"Model output shape: {model.output_shape}")
-except Exception as e:
-    model_load_error = str(e)
-    logging.error(f"✗ Failed to load model: {model_load_error}")
-    logging.error("="*60)
-    logging.error("MODEL LOADING ISSUE DETECTED")
-    logging.error("="*60)
-    logging.error("Your model file was saved with an older Keras version that uses 'batch_shape'")
-    logging.error("which is not compatible with TensorFlow 2.15.")
-    logging.error("")
-    logging.error("TO FIX THIS:")
-    logging.error("1. Load your model in your original environment (with older TensorFlow)")
-    logging.error("2. Re-save it using this code:")
-    logging.error("")
-    logging.error("   import tensorflow as tf")
-    logging.error("   model = tf.keras.models.load_model('food_freshness_model.h5')")
-    logging.error("   model.save('food_freshness_model_fixed.h5')")
-    logging.error("")
-    logging.error("3. Or export as SavedModel format:")
-    logging.error("   model.export('food_model_savedmodel')")
-    logging.error("")
-    logging.error("The app will continue to work with basic image analysis predictions.")
-    logging.error("="*60)
-    model = None
+# Color-based freshness analysis (no ML model needed)
+logging.info("="*60)
+logging.info("Food Freshness Analyzer - Color-Based Analysis Mode")
+logging.info("Using lightweight HSV color analysis for freshness detection")
+logging.info("="*60)
 
 # Create the main app
 app = FastAPI()
@@ -144,68 +101,45 @@ async def predict_food(file: UploadFile = File(...)):
         image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
         
         # ============================================================
-        # ACTUAL CNN MODEL INFERENCE
+        # COLOR-BASED FRESHNESS ANALYSIS (No ML model needed)
         # ============================================================
         
-        if model is not None:
-            # YOUR ACTUAL MODEL IS LOADED - USE IT
-            # Preprocess image for model (224x224)
-            img_array = np.array(image.convert('RGB'))
-            img_array = cv2.resize(img_array, (224, 224))
-            img_array = img_array / 255.0  # Normalize to 0-1
-            img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
-            
-            # Run model prediction
-            predictions = model.predict(img_array, verbose=0)
-            predicted_class_idx = np.argmax(predictions[0])
-            confidence = float(np.max(predictions[0]))
-            
-            # Map class index to freshness class
-            # Class 0: Fresh, Class 1: Rotten, Class 2: Semi-Rotten
-            freshness_classes = ["Fresh", "Rotten", "Semi-Rotten"]
-            freshness_class = freshness_classes[predicted_class_idx]
-        else:
-            # FALLBACK: Basic image analysis when model can't load
-            # This analyzes color properties to estimate freshness
-            logging.info("Using fallback image analysis (model not loaded)")
-            
-            img_array = np.array(image.convert('RGB'))
-            img_array = cv2.resize(img_array, (224, 224))
-            
-            # Analyze color properties
-            # Fresh produce typically has vibrant, saturated colors
-            # Rotten produce has darker, desaturated, brownish colors
-            
-            # Convert to HSV for better color analysis
-            hsv = cv2.cvtColor(img_array, cv2.COLOR_RGB2HSV)
-            h, s, v = cv2.split(hsv)
-            
-            # Calculate metrics
-            avg_saturation = np.mean(s)
-            avg_value = np.mean(v)
-            avg_hue = np.mean(h)
-            
-            # Detect brown/dark colors (signs of rotting)
-            brown_mask = ((h > 10) & (h < 30) & (s > 50) & (v < 150))
-            brown_ratio = np.sum(brown_mask) / brown_mask.size
-            
-            # Detect dark areas
-            dark_ratio = np.sum(v < 80) / v.size
-            
-            # Decision logic based on color analysis
-            if dark_ratio > 0.4 or brown_ratio > 0.3 or (avg_saturation < 60 and avg_value < 100):
-                freshness_class = "Rotten"
-                confidence = 0.75 + (dark_ratio * 0.2)
-            elif dark_ratio > 0.2 or brown_ratio > 0.15 or avg_saturation < 100:
-                freshness_class = "Semi-Rotten"
-                confidence = 0.70 + (brown_ratio * 0.25)
-            else:
-                freshness_class = "Fresh"
-                confidence = 0.80 + (avg_saturation / 500)
-            
-            confidence = min(confidence, 0.95)  # Cap at 95%
+        # Analyze image using HSV color analysis
+        logging.info("Using color-based freshness analysis")
         
-        # Food name (since model only predicts freshness)
+        img_array = np.array(image.convert('RGB'))
+        img_array = cv2.resize(img_array, (224, 224))
+        
+        # Convert to HSV for better color analysis
+        hsv = cv2.cvtColor(img_array, cv2.COLOR_RGB2HSV)
+        h, s, v = cv2.split(hsv)
+        
+        # Calculate metrics
+        avg_saturation = np.mean(s)
+        avg_value = np.mean(v)
+        avg_hue = np.mean(h)
+        
+        # Detect brown/dark colors (signs of rotting)
+        brown_mask = ((h > 10) & (h < 30) & (s > 50) & (v < 150))
+        brown_ratio = np.sum(brown_mask) / brown_mask.size
+        
+        # Detect dark areas
+        dark_ratio = np.sum(v < 80) / v.size
+        
+        # Decision logic based on color analysis
+        if dark_ratio > 0.4 or brown_ratio > 0.3 or (avg_saturation < 60 and avg_value < 100):
+            freshness_class = "Rotten"
+            confidence = 0.75 + (dark_ratio * 0.2)
+        elif dark_ratio > 0.2 or brown_ratio > 0.15 or avg_saturation < 100:
+            freshness_class = "Semi-Rotten"
+            confidence = 0.70 + (brown_ratio * 0.25)
+        else:
+            freshness_class = "Fresh"
+            confidence = 0.80 + (avg_saturation / 500)
+        
+        confidence = min(confidence, 0.95)  # Cap at 95%
+        
+        # Food name (generic since we don't have CNN for food type detection)
         food_name = "Food Item"
         
         # Get nutritional data based on freshness
@@ -229,7 +163,7 @@ async def predict_food(file: UploadFile = File(...)):
             }
         
         # ============================================================
-        # END OF ACTUAL MODEL INFERENCE
+        # END OF COLOR-BASED ANALYSIS
         # ============================================================
         
         response = PredictionResponse(
