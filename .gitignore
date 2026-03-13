@@ -81,3 +81,7 @@ android-sdk/
 
 # Note: .env files are tracked in this repo for Emergent deployment
 # DO NOT ignore .env files as they contain deployment configuration
+-e 
+# Environment files
+*.env
+*.env.*
