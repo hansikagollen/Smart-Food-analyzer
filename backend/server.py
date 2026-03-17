@@ -46,13 +46,11 @@ except Exception as e:
     logging.error(f"Model failed to load: {e}")
     model = None
 
-
 # --------------------------------------------------
 # FastAPI App
 # --------------------------------------------------
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
-
 
 # --------------------------------------------------
 # Response Models
@@ -100,20 +98,22 @@ async def predict_food(file: UploadFile = File(...)):
         image_rgb = image.convert("RGB")
         image_rgb.thumbnail((800, 800))
         image_rgb.save(buffered, format="JPEG")
-##code from main branch
         image_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
         # --------------------------------------------------
-        # MODEL INFERENCE
+        # MODEL OR COLOR BASED ANALYSIS
         # --------------------------------------------------
+
+        img_array = np.array(image.convert("RGB"))
+        img_array = cv2.resize(img_array, (224, 224))
+
         if model is not None:
+            logging.info("Using ML model for freshness prediction")
 
-            img_array = np.array(image.convert("RGB"))
-            img_array = cv2.resize(img_array, (224, 224))
-            img_array = img_array / 255.0
-            img_array = np.expand_dims(img_array, axis=0)
+            img_input = img_array / 255.0
+            img_input = np.expand_dims(img_input, axis=0)
 
-            predictions = model.predict(img_array, verbose=0)
+            predictions = model.predict(img_input, verbose=0)
             predicted_class_idx = np.argmax(predictions[0])
             confidence = float(np.max(predictions[0]))
 
@@ -121,98 +121,34 @@ async def predict_food(file: UploadFile = File(...)):
             freshness_class = freshness_classes[predicted_class_idx]
 
         else:
-
-            logging.info("Using fallback color analysis")
-
-            img_array = np.array(image.convert("RGB"))
-            img_array = cv2.resize(img_array, (224, 224))
+            logging.info("Using color-based freshness analysis")
 
             hsv = cv2.cvtColor(img_array, cv2.COLOR_RGB2HSV)
-            _, s, v = cv2.split(hsv)
+            h, s, v = cv2.split(hsv)
 
             avg_saturation = np.mean(s)
             avg_value = np.mean(v)
 
-            if avg_value < 80:
+            brown_mask = ((h > 5) & (h < 40) & (s > 20) & (v < 200) & (v > 30))
+            brown_ratio = np.sum(brown_mask) / brown_mask.size
+
+            dark_ratio = np.sum(v < 100) / v.size
+            dull_ratio = np.sum(s < 70) / s.size
+
+            if dark_ratio > 0.4 or brown_ratio > 0.25:
                 freshness_class = "Rotten"
                 confidence = 0.75
-            elif avg_saturation < 100:
+            elif dark_ratio > 0.35 or brown_ratio > 0.05 or dull_ratio > 0.6:
                 freshness_class = "Semi-Rotten"
-                confidence = 0.7
+                confidence = 0.70
             else:
                 freshness_class = "Fresh"
                 confidence = 0.85
 
         # --------------------------------------------------
-        # Food info (temporary placeholder)
+        # Food info (placeholder)
         # --------------------------------------------------
-##code from cnflict branch
-        image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-        
-        # ============================================================
-        # COLOR-BASED FRESHNESS ANALYSIS (No ML model needed)
-        # ============================================================
-        
-        # Analyze image using HSV color analysis
-        logging.info("Using color-based freshness analysis")
-        
-        img_array = np.array(image.convert('RGB'))
-        img_array = cv2.resize(img_array, (224, 224))
-        
-        # Convert to HSV for better color analysis
-        hsv = cv2.cvtColor(img_array, cv2.COLOR_RGB2HSV)
-        h, s, v = cv2.split(hsv)
-        
-        # Calculate metrics
-        avg_saturation = np.mean(s)
-        avg_value = np.mean(v)
-        avg_hue = np.mean(h)
-        
-        # Calculate standard deviation to detect uniformity (fresh produce is more uniform)
-        std_value = np.std(v)
-        
-        # Detect brown/dark colors (signs of rotting)
-        # Brown hues in HSV: typically 10-40 range (orange to brown)
-        # Expanded range to catch more brown tones
-        brown_mask = ((h > 5) & (h < 40) & (s > 20) & (v < 200) & (v > 30))
-        brown_ratio = np.sum(brown_mask) / brown_mask.size
-        
-        # Detect very dark areas (significant rotting)
-        very_dark_ratio = np.sum(v < 60) / v.size
-        
-        # Detect moderately dark areas (minor rotting)
-        dark_ratio = np.sum(v < 100) / v.size
-        
-        # Detect dull/low saturation areas (loss of freshness)
-        dull_ratio = np.sum(s < 70) / s.size
-        
-        # Fresh produce characteristics:
-        # - Higher average brightness (value > 130)
-        # - Higher saturation (s > 80 for most fresh produce)
-        # - Lower dark ratio (< 0.3)
-        # - Lower brown ratio (< 0.05)
-        
-        # Decision logic with improved thresholds
-        # Rotten: Very dark OR lots of brown OR very low brightness+saturation
-        if very_dark_ratio > 0.4 or brown_ratio > 0.25 or (avg_value < 70 and avg_saturation < 40):
-            freshness_class = "Rotten"
-            confidence = 0.75 + (very_dark_ratio * 0.2)
-        # Semi-Rotten: Moderate issues with color/brightness OR some brown spots
-        elif dark_ratio > 0.35 or brown_ratio > 0.05 or dull_ratio > 0.6 or (avg_value < 140 and brown_ratio > 0.02):
-            freshness_class = "Semi-Rotten"
-            confidence = 0.70 + (brown_ratio * 0.25)
-        # Fresh: Good color and brightness
-        else:
-            freshness_class = "Fresh"
-            confidence = 0.75 + (avg_saturation / 400) + (avg_value / 1000)
-        
-        confidence = min(confidence, 0.95)  # Cap at 95%
-        
-        # Log analysis for debugging
-        logger.info(f"Analysis: sat={avg_saturation:.1f}, val={avg_value:.1f}, dark={dark_ratio:.2f}, brown={brown_ratio:.2f}, dull={dull_ratio:.2f} -> {freshness_class}")
-        
-        # Food name (generic since we don't have CNN for food type detection)
- origin/conflict_170326_1958
+
         food_name = "Food Item"
 
         if freshness_class == "Fresh":
